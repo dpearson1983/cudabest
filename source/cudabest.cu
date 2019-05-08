@@ -34,7 +34,21 @@ __global__ void cudabest::zeroArrays(double *d_F0, double *d_F2, double *d_Bij, 
     }
 }
 
-__global__ void cudabest::calculateNumTriangles(int4 *d_kvecs, unsigned long long int *d_Ntri, int N_kvecs, 
-                                                int4 N) {
-    int tid = threadIdx.x
+__global__ void cudabest::calculateNumTriangles(int4 *d_kvecs,double *k_mags, unsigned long long int *d_Ntri, 
+                                                int N_kvecs, int4 N, double3 k_f, int4 N_bins) {
+    int tid = threadIdx.x + blockDim.x*blockIdx.x;
+    int N_init = N_bins.w/blockDim.x + 1;
+    int startInit = threadIdx.x*N_init;
+    
+    extern __shared__ unsigned long long int Ntri_local[];
+    for (int i = startInit; i < startInit + N_init; ++i) {
+        if (i < N_bins.w) {
+            Ntri_local[i] = 0;
+        }
+    }
+    __syncthreads();
+    
+    if (tid < N_kvecs) {
+        int4 k_1 = d_kvecs[tid];
+    }
 }

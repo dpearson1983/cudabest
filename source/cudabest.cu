@@ -34,4 +34,7 @@ __global__ void cudabest::zeroArrays(double *d_F0, double *d_F2, double *d_Bij, 
     }
 }
 
-__global__ void cudabest::calculateNumTriangles(
+__global__ void cudabest::calculateNumTriangles(int4 *d_kvecs, unsigned long long int *d_Ntri, int N_kvecs, 
+                                                int4 N) {
+    int tid = threadIdx.x
+}

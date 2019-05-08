@@ -3,7 +3,6 @@
 
 #include <vector>
 #include <vector_types.h>
-#include <cufft.h>
 
 class cudabest{
     int4 N; // Grid dimensions

@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <vector_types.h>
+#include <cuda.h>
 #include <cufft.h>
 
 class cudabest{
@@ -20,9 +21,11 @@ class cudabest{
     
     __device__ int getBispecBin(double k1, double k2, double k3, int numBins);
     
-    __global__ void zeroArrays(int4 N);
+    __global__ void zeroArrays(cufftDoubleComplex *dF0, cufftDoubleComplex *dF2, cufftDoubleComplex *dBij, 
+                               int4 N);
     
-    __global__ void calculateNumTriangles(int4 *d_kvecs, unsigned long long int *d_Ntri, int N_kvecs, int4 N);
+    __global__ void calculateNumTriangles(int4 *d_kvecs, double *k_mags, unsigned long long int *dNtri, 
+                                          int N_kvecs, int N_bins);
     
     __global__ void calculateBispectrum(double *d_F0 double *d_F2, double *d_Bij, int4 N, double *B0,
                                         double *B2);

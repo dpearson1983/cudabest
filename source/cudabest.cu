@@ -1,9 +1,10 @@
 #include <iostream>
 #include <vector>
 #include <vector_types.h>
+#include <cuda.h>
 #include <cufft.h>
 #include <cmath>
-#include "../include/cudabest.h"
+#include "../include/cudabest.hpp"
 
 __constant__ double2 d_klim;
 __constant__ double d_Deltak;
@@ -29,7 +30,8 @@ __device__ int cudabest::getBispecBin(double k1, double k2, double k3, int numBi
     return bin;
 }
 
-__global__ void cudabest::zeroArrays(int4 N) {
+__global__ void cudabest::zeroArrays(cufftDoubleComplex *dF0, cufftDoubleComplex *dF2, cufftDoubleComplex *dBij, 
+                                     int4 N) {
     int tid = threadIdx.x + blockDim.x*blockIdx.x;
     
     if (tid < N.w) {
@@ -39,7 +41,8 @@ __global__ void cudabest::zeroArrays(int4 N) {
     }
 }
 
-__global__ void cudabest::calculateNumTriangles(int4 *d_kvecs, double *k_mags, int N_kvecs, int N_bins) {
+__global__ void cudabest::calculateNumTriangles(int4 *d_kvecs, double *k_mags, unsigned long long int *dNtri, 
+                                                int N_kvecs, int N_bins) {
     int tid = threadIdx.x + blockDim.x*blockIdx.x;
     int N_init = N_bins.w/blockDim.x + 1;
     int startInit = threadIdx.x*N_init;
@@ -70,7 +73,7 @@ __global__ void cudabest::calculateNumTriangles(int4 *d_kvecs, double *k_mags, i
     __syncthreads();
     
     for (int i = startInit; i < startInit + N_init; ++i) {
-        atomicAdd(&this->d_Ntri[i], Ntri_local[i]);
+        atomicAdd(dNtri[i], Ntri_local[i]);
     }
 }
 
@@ -102,7 +105,7 @@ cudabest::cudabest(int Nx, int Ny, int Nz, double Lx, double Ly, double Lz, doub
     cudaMalloc((void **)&this->d_F2, this->N.w*sizeof(cufftDoubleComplex));
     cudaMalloc((void **)&this->d_Bij, this->N.w*sizeof(cufftDoubleComplex));
     
-    cudabest::zeroArrays(this->N);
+    cudabest::zeroArrays(this->d_F0, this->d_F2, this->d_Bij, this->N);
 }
 
 void cudabest::getBispectrum(std::vector<double3> &gals, std::vector<double3> &rans, std::vector<double> &B_0,

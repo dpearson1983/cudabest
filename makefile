@@ -10,4 +10,4 @@ library: obj/cudabest.o
 	$(VXX) $(VXXFLAGS) $(LDFLAGS) $^ -fPIC -shared -o libcudabest.so
 	
 obj/cudabest.o: source/cudabest.cu
-	$(VXX) $(VXXFLAGS) -dw source/cudabest.cu -o obj/cudabest.o
+	$(VXX) $(VXXFLAGS) -dc source/cudabest.cu -o obj/cudabest.o

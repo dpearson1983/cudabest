@@ -12,7 +12,7 @@ __constant__ double d_Deltak;
 __constant__ int4 d_N;
 __constant__ double3 d_kf
 
-__device__ void cudabest::swapIfGreater(double &a, double &b) {
+__device__ void swapIfGreater(double &a, double &b) {
     if (a > b) {
         double temp = a;
         a = b;
@@ -20,10 +20,10 @@ __device__ void cudabest::swapIfGreater(double &a, double &b) {
     }
 }
 
-__device__ int cudabest::getBispecBin(double k1, double k2, double k3, int numBins) {
-    cudabest::swapIfGreater(k1, k2);
-    cudabest::swapIfGreater(k1, k3);
-    cudabest::swapIfGreater(k2, k3);
+__device__ int getBispecBin(double k1, double k2, double k3, int numBins) {
+    swapIfGreater(k1, k2);
+    swapIfGreater(k1, k3);
+    swapIfGreater(k2, k3);
     int i = (k1 - d_klim.x)/d_Deltak;
     int j = (k2 - d_klim.x)/d_Deltak;
     int k = (k3 - d_klim.x)/d_Deltak;
@@ -31,7 +31,7 @@ __device__ int cudabest::getBispecBin(double k1, double k2, double k3, int numBi
     return bin;
 }
 
-__global__ void cudabest::zeroArrays(cufftDoubleComplex *dF0, cufftDoubleComplex *dF2, cufftDoubleComplex *dBij, 
+__global__ void zeroArrays(cufftDoubleComplex *dF0, cufftDoubleComplex *dF2, cufftDoubleComplex *dBij, 
                                      int4 N) {
     int tid = threadIdx.x + blockDim.x*blockIdx.x;
     
@@ -42,7 +42,7 @@ __global__ void cudabest::zeroArrays(cufftDoubleComplex *dF0, cufftDoubleComplex
     }
 }
 
-__global__ void cudabest::calculateNumTriangles(int4 *d_kvecs, double *k_mags, unsigned long long int *dNtri, 
+__global__ void calculateNumTriangles(int4 *d_kvecs, double *k_mags, unsigned long long int *dNtri, 
                                                 int N_kvecs, int N_bins) {
     int tid = threadIdx.x + blockDim.x*blockIdx.x;
     int N_init = N_bins.w/blockDim.x + 1;
@@ -66,7 +66,7 @@ __global__ void cudabest::calculateNumTriangles(int4 *d_kvecs, double *k_mags, u
             double3 k3 = {k_3.x*d_kf.x, k_3.y*d_kf.y, k_3.z*d_kf.z};
             double k_3mag = __dsqrt_rn(k3.x*k3.x + k3.y*k3.y + k3.z*k3.z);
             if (k_3mag >= d_klim.x && k_3mag < d_klim.y) {
-                cudabest::getBispecBin(k_1mag, k2_mag, k3_mag, N_bins);
+                getBispecBin(k_1mag, k2_mag, k3_mag, N_bins);
                 atomicAdd(&Ntri_local[bin], 1L);
             }
         }
@@ -78,13 +78,13 @@ __global__ void cudabest::calculateNumTriangles(int4 *d_kvecs, double *k_mags, u
     }
 }
 
-__global__ void cudabest::calculateBispectrum(int 4, double *B0, double *B2) {
-    int tid = threadIdx.x + blockDim.x*blockIdx.x;
-}
-
-__global__ void cudabest::bin(double3 *pos, double3 r_min, double3 Delta_r) {
-    int tid = threadIdx.x + blockDim.x*blockIdx.x;
-}
+// __global__ void calculateBispectrum(int 4, double *B0, double *B2) {
+//     int tid = threadIdx.x + blockDim.x*blockIdx.x;
+// }
+// 
+// __global__ void bin(double3 *pos, double3 r_min, double3 Delta_r) {
+//     int tid = threadIdx.x + blockDim.x*blockIdx.x;
+// }
 
 cudabest::cudabest(int Nx, int Ny, int Nz, double Lx, double Ly, double Lz, double x_min, double y_min, 
                    double z_min, double k_min, double k_max, int N_bins) {
@@ -98,9 +98,9 @@ cudabest::cudabest(int Nx, int Ny, int Nz, double Lx, double Ly, double Lz, doub
     this->Delta_k = (k_max - k_min)/N_bins;
     
     cudaMemcpyToSymbol(d_klim, &k_lim, sizeof(double2));
-    cudaMemcpyToSymbol(d_kf, &this->k_f, sizeof(double3));
-    cudaMemcpyToSymbol(d_N, &this->N, sizeof(int4));
-    cudaMemcpyToSymbol(d_Deltak, &this->Delta_k, sizeof(double));
+    cudaMemcpyToSymbol(d_kf, this->k_f, sizeof(double3));
+    cudaMemcpyToSymbol(d_N, this->N, sizeof(int4));
+    cudaMemcpyToSymbol(d_Deltak, this->Delta_k, sizeof(double));
     
     cudaMalloc((void **)&this->d_F0, this->N.w*sizeof(cufftDoubleComplex));
     cudaMalloc((void **)&this->d_F2, this->N.w*sizeof(cufftDoubleComplex));

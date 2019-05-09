@@ -3,23 +3,24 @@
 
 #include <vector>
 #include <vector_types.h>
+#include <cufft.h>
 
 class cudabest{
     int4 N; // Grid dimensions
-    double3 L, Delta_r, k_f; // Box size / Grid cell size / Fundamental frequencies
+    double3 L, Delta_r, k_f, r_min; // Box size / Grid cell size / Fundamental frequencies
     int N_threads, N_blocks;
-    double k_min, k_max, Delta_k;
+    double k_min, k_max;
     std::vector<int4> k_vecs; // Component frequencies and flattened array index for grid points in range
     int4 *d_kvecs; // Device storage for the above
     std::vector<double3> k; // Frequency bins defined by k_min, k_max and Delta_k
-    double *d_F0, *d_F2, *d_Bij;
+    cufftDoubleComplex *d_F0, *d_F2, *d_Bij;
     unsigned long long int *d_Ntri;
     
     __device__ void swapIfGreater(double &a, double &b);
     
-    __device__ int getBispecBin(double k1, double k2, double k3, double Delta_k, int numBins, double k_min);
+    __device__ int getBispecBin(double k1, double k2, double k3, int numBins);
     
-    __global__ void zeroArrays(double *d_F0, double *d_F2, double *d_Bij, int4 N);
+    __global__ void zeroArrays(int4 N);
     
     __global__ void calculateNumTriangles(int4 *d_kvecs, unsigned long long int *d_Ntri, int N_kvecs, int4 N);
     

@@ -1,16 +1,15 @@
 #include <iostream>
 #include <vector>
-#include <vector_types.h>
+#include <cmath>
 #include <cuda.h>
 #include <cufft.h>
-#include <cmath>
-#include <cstddef>
+#include <vector_types.h>
 #include "../include/cudabest.hpp"
 
 __constant__ double2 d_klim;
 __constant__ double d_Deltak;
 __constant__ int4 d_N;
-__constant__ double3 d_kf
+__constant__ double3 d_kf;
 
 __device__ void swapIfGreater(double &a, double &b) {
     if (a > b) {
@@ -36,16 +35,19 @@ __global__ void zeroArrays(cufftDoubleComplex *dF0, cufftDoubleComplex *dF2, cuf
     int tid = threadIdx.x + blockDim.x*blockIdx.x;
     
     if (tid < N.w) {
-        this->d_F0[tid] = 0.0;
-        this->d_F2[tid] = 0.0;
-        this->d_Bij[tid] = 0.0;
+        dF0[tid].x = 0.0;
+        dF0[tid].y = 0.0;
+        dF2[tid].x = 0.0;
+        dF2[tid].y = 0.0;
+        dBij[tid].x = 0.0;
+        dBij[tid].y = 0.0;
     }
 }
 
 __global__ void calculateNumTriangles(int4 *d_kvecs, double *k_mags, unsigned long long int *dNtri, 
                                                 int N_kvecs, int N_bins) {
     int tid = threadIdx.x + blockDim.x*blockIdx.x;
-    int N_init = N_bins.w/blockDim.x + 1;
+    int N_init = N_bins/blockDim.x + 1;
     int startInit = threadIdx.x*N_init;
     
     extern __shared__ unsigned long long int Ntri_local[];
@@ -66,7 +68,7 @@ __global__ void calculateNumTriangles(int4 *d_kvecs, double *k_mags, unsigned lo
             double3 k3 = {k_3.x*d_kf.x, k_3.y*d_kf.y, k_3.z*d_kf.z};
             double k_3mag = __dsqrt_rn(k3.x*k3.x + k3.y*k3.y + k3.z*k3.z);
             if (k_3mag >= d_klim.x && k_3mag < d_klim.y) {
-                getBispecBin(k_1mag, k2_mag, k3_mag, N_bins);
+                int bin = getBispecBin(k_1mag, k_2mag, k_3mag, N_bins);
                 atomicAdd(&Ntri_local[bin], 1L);
             }
         }
@@ -74,7 +76,7 @@ __global__ void calculateNumTriangles(int4 *d_kvecs, double *k_mags, unsigned lo
     __syncthreads();
     
     for (int i = startInit; i < startInit + N_init; ++i) {
-        atomicAdd(dNtri[i], Ntri_local[i]);
+        atomicAdd(&dNtri[i], Ntri_local[i]);
     }
 }
 
@@ -98,15 +100,18 @@ cudabest::cudabest(int Nx, int Ny, int Nz, double Lx, double Ly, double Lz, doub
     this->Delta_k = (k_max - k_min)/N_bins;
     
     cudaMemcpyToSymbol(d_klim, &k_lim, sizeof(double2));
-    cudaMemcpyToSymbol(d_kf, this->k_f, sizeof(double3));
-    cudaMemcpyToSymbol(d_N, this->N, sizeof(int4));
-    cudaMemcpyToSymbol(d_Deltak, this->Delta_k, sizeof(double));
+    cudaMemcpyToSymbol(d_kf, &this->k_f, sizeof(double3));
+    cudaMemcpyToSymbol(d_N, &this->N, sizeof(int4));
+    cudaMemcpyToSymbol(d_Deltak, &this->Delta_k, sizeof(double));
     
     cudaMalloc((void **)&this->d_F0, this->N.w*sizeof(cufftDoubleComplex));
     cudaMalloc((void **)&this->d_F2, this->N.w*sizeof(cufftDoubleComplex));
     cudaMalloc((void **)&this->d_Bij, this->N.w*sizeof(cufftDoubleComplex));
     
-    cudabest::zeroArrays(this->d_F0, this->d_F2, this->d_Bij, this->N);
+    this->N_threads = Nx;
+    this->N_blocks = this->N.w/this->N_threads + 1;
+    
+    zeroArrays<<<this->N_blocks, this->N_threads>>>(this->d_F0, this->d_F2, this->d_Bij, this->N);
 }
 
 void cudabest::getBispectrum(std::vector<double3> &gals, std::vector<double3> &rans, std::vector<double> &B_0,

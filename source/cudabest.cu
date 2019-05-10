@@ -84,9 +84,20 @@ __global__ void calculateNumTriangles(int4 *d_kvecs, double *k_mags, unsigned lo
 //     int tid = threadIdx.x + blockDim.x*blockIdx.x;
 // }
 // 
-// __global__ void bin(double3 *pos, double3 r_min, double3 Delta_r) {
-//     int tid = threadIdx.x + blockDim.x*blockIdx.x;
-// }
+__global__ void bin(cufftDoubleComplex *d_F, double4 *pos, double3 r_min, double3 Delta_r, int N_gals) {
+    int tid = threadIdx.x + blockDim.x*blockIdx.x;
+    
+    if (tid < N_gals) {
+        int4 ngp = {(pos[tid].x - r_min.x)/Delta_r.x, (pos[tid].y - r_min.y/Delta_r.y, 
+                    (pos[tid].z - r_min.z/Delta_r.z, 0};
+        ngp.w = ngp.z + d_N.z*(ngp.y + d_N.y*ngp.x);
+        double3 r_ngp = {(ngp.x + 0.5)*Delta_r.x + r_min.x, (ngp.y + 0.5)*Delta_r.y + r_min.y,
+                         (ngp.z + 0.5)*Delta_r.z + r-min.z};
+        double3 d = {pos[tid].x - r_ngp.x, pos[tid].y - r_ngp.y, pos[tid].z - r_ngp.z};
+        double3 t = {1.0 - d.x, 1.0 - d.y, 1.0 - d.z};
+        int3 shift = 
+    }
+}
 
 cudabest::cudabest(int Nx, int Ny, int Nz, double Lx, double Ly, double Lz, double x_min, double y_min, 
                    double z_min, double k_min, double k_max, int N_bins) {

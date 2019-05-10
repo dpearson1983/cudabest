@@ -88,14 +88,38 @@ __global__ void bin(cufftDoubleComplex *d_F, double4 *pos, double3 r_min, double
     int tid = threadIdx.x + blockDim.x*blockIdx.x;
     
     if (tid < N_gals) {
-        int4 ngp = {(pos[tid].x - r_min.x)/Delta_r.x, (pos[tid].y - r_min.y/Delta_r.y, 
-                    (pos[tid].z - r_min.z/Delta_r.z, 0};
+        int4 ngp = {(pos[tid].x - r_min.x)/Delta_r.x, (pos[tid].y - r_min.y)/Delta_r.y, 
+                    (pos[tid].z - r_min.z)/Delta_r.z, 0};
         ngp.w = ngp.z + d_N.z*(ngp.y + d_N.y*ngp.x);
         double3 r_ngp = {(ngp.x + 0.5)*Delta_r.x + r_min.x, (ngp.y + 0.5)*Delta_r.y + r_min.y,
-                         (ngp.z + 0.5)*Delta_r.z + r-min.z};
+                         (ngp.z + 0.5)*Delta_r.z + r_min.z};
         double3 d = {pos[tid].x - r_ngp.x, pos[tid].y - r_ngp.y, pos[tid].z - r_ngp.z};
-        double3 t = {1.0 - d.x, 1.0 - d.y, 1.0 - d.z};
-        int3 shift = 
+        // To prevent division by zero without having to check explicity with if statements, subtract
+        // small value for the denominator. If t.x, t.y or t.z is zero this will give you 0/-1E-32 which is
+        // still zero.
+        int3 shift = {d.x/(fabs(d.x) - 1E-32), d.y/(fabs(d.y) - 1E-32), d.z/(fabs(d.z) - 1E-32)};
+        d.x = fabs(d.x);
+        d.y = fabs(d.y);
+        d.z = fabs(d.z);
+        double3 t = {Delta_r.x - d.x, Delta_r.y - d.y, Delta_r.z - d.z};
+        
+        int index0 = ngp.w;
+        int index1 = ngp.z + d_N.z*(ngp.y + d_N.y*(ngp.x + shift.x));
+        int index2 = ngp.z + d_N.z*((ngp.y + shift.y) + d_N.y*ngp.x);
+        int index3 = (ngp.z + shift.z) + d_N.z*(ngp.y + d_N.y*ngp.x);
+        int index4 = ngp.z + d_N.z*((ngp.y + shift.y) + d_N.y*(ngp.x + shift.x));
+        int index5 = (ngp.z + shift.z) + d_N.z*(ngp.y + d_N.y*(ngp.x + shift.x));
+        int index6 = (ngp.z + shift.z) + d_N.z*((ngp.y + shift.y) + d_N.y*ngp.x);
+        int index7 = (ngp.z + shift.z) + d_N.z*((ngp.y + shift.y) + d_N.y*(ngp.x + shift.x));
+        
+        atomicAdd(&d_F[index0].x, pos[tid].w*t.x*t.y*t.z);
+        atomicAdd(&d_F[index1].x, pos[tid].w*d.x*t.y*t.z);
+        atomicAdd(&d_F[index2].x, pos[tid].w*t.x*d.y*t.z);
+        atomicAdd(&d_F[index3].x, pos[tid].w*t.x*t.y*d.z);
+        atomicAdd(&d_F[index4].x, pos[tid].w*d.x*d.y*t.z);
+        atomicAdd(&d_F[index5].x, pos[tid].w*d.x*t.y*d.z);
+        atomicAdd(&d_F[index6].x, pos[tid].w*t.x*d.y*d.z);
+        atomicAdd(&d_F[index7].x, pos[tid].w*d.x*d.y*d.z);
     }
 }
 

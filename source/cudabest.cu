@@ -45,14 +45,14 @@ __global__ void zeroArrays(cufftDoubleComplex *dF0, cufftDoubleComplex *dF2, cuf
 }
 
 __global__ void calculateNumTriangles(int4 *d_kvecs, double *k_mags, unsigned long long int *dNtri, 
-                                                int N_kvecs, int N_bins) {
+                                      int N_kvecs, int N_bins, int totBins) {
     int tid = threadIdx.x + blockDim.x*blockIdx.x;
-    int N_init = N_bins/blockDim.x + 1;
+    int N_init = totBins/blockDim.x + 1;
     int startInit = threadIdx.x*N_init;
     
     extern __shared__ unsigned long long int Ntri_local[];
     for (int i = startInit; i < startInit + N_init; ++i) {
-        if (i < N_bins) {
+        if (i < totBins) {
             Ntri_local[i] = 0;
         }
     }
@@ -76,14 +76,53 @@ __global__ void calculateNumTriangles(int4 *d_kvecs, double *k_mags, unsigned lo
     __syncthreads();
     
     for (int i = startInit; i < startInit + N_init; ++i) {
-        atomicAdd(&dNtri[i], Ntri_local[i]);
+        if (i < totBins) {
+            atomicAdd(&dNtri[i], Ntri_local[i]);
+        }
     }
 }
 
-// __global__ void calculateBispectrum(int 4, double *B0, double *B2) {
-//     int tid = threadIdx.x + blockDim.x*blockIdx.x;
-// }
-// 
+__global__ void calculateB_0(int4 *d_kvecs, double *k_mags, cufftDoubleComplex *d_F0, double *B0, int N_kvecs, 
+                             int N_bins, int totBins) {
+    int tid = threadIdx.x + blockDim.x*blockIdx.x;
+    int N_init = totBins/blockDim.x + 1;
+    int startInit = threadIdx.x*N_init;
+    
+    extern __shared__ unsigned double B0_local;
+    for (int i = startInit; i < startInit + N_initl ++i) {
+        if (i < totBins) {
+            B0_local[i] = 0.0;
+        }
+    }
+    __syncthreads();
+    
+    if (tid < N_kvecs) {
+        int4 k_1 = d_kvecs[tid];
+        double k1_mag = k_mags[tid];
+        cufftDoubleComplex dk1 = d_F0[k_1.w];
+        for (int i = tid; i < N_kvecs; ++i) {
+            int4 k_2 = d_kvecs[i];
+            double k_2mag = k_mags[i];
+            cufftDoubleComplex dk2 = d_F0[k_2.w];
+            int4 k_3 = {-k_1.x - k_2.x, -k_1.y - k_2.y, -k_3.z - k_3.z, 0};
+            double3 k3 = {k_3.x*d_kf.x, k_3.y*d_ky.y, k_3.z*d_kf.z};
+            double k_3mag = __dsqrt_rn(k3.x*k3.x + k3.y*k3.y + k3.z*k3.z);
+            if (k_3mag >= d_klim.x && k_3mag < d_klim.y) {
+                
+            }
+            
+        }
+        
+    }
+    __syncthreads();
+    
+    for (int i = startInit; i < startInit + N_inti; ++i) {
+        if (i < totBins) {
+            atomicAdd(&B0[i], B0_local[i]);
+        }
+    }
+}
+
 __global__ void bin(cufftDoubleComplex *d_F, double4 *pos, double3 r_min, double3 Delta_r, int N_gals) {
     int tid = threadIdx.x + blockDim.x*blockIdx.x;
     
@@ -94,10 +133,7 @@ __global__ void bin(cufftDoubleComplex *d_F, double4 *pos, double3 r_min, double
         double3 r_ngp = {(ngp.x + 0.5)*Delta_r.x + r_min.x, (ngp.y + 0.5)*Delta_r.y + r_min.y,
                          (ngp.z + 0.5)*Delta_r.z + r_min.z};
         double3 d = {pos[tid].x - r_ngp.x, pos[tid].y - r_ngp.y, pos[tid].z - r_ngp.z};
-        // To prevent division by zero without having to check explicity with if statements, subtract
-        // small value for the denominator. If t.x, t.y or t.z is zero this will give you 0/-1E-32 which is
-        // still zero.
-        int3 shift = {d.x/(fabs(d.x) - 1E-32), d.y/(fabs(d.y) - 1E-32), d.z/(fabs(d.z) - 1E-32)};
+        int3 shift = {(int)copysign(1.0, d.x), (int)copysign(1.0, d.y), (int)copysign(1.0, d.z)};
         d.x = fabs(d.x);
         d.y = fabs(d.y);
         d.z = fabs(d.z);
